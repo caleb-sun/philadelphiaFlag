@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --ink:    #0f0e0d;
+      --paper:  #f5f0e8;
+      --accent: #c8401a;
+      --muted:  #8a8378;
+      --check:  #1a6640;
+      --border: #d4cec4;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'DM Mono', monospace;
+    }
+
+    /* ── Progress bar ── */
+    #progress-bar {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      background: var(--accent);
+      transition: width 0.5s cubic-bezier(.4,0,.2,1);
+      z-index: 100;
+    }
+
+    /* ── Layout ── */
+    #app {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 24px 80px;
+    }
+
+    /* ── Header strip ── */
+    .quiz-header {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      padding: 20px 40px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--paper);
+      border-bottom: 1px solid var(--border);
+      z-index: 50;
+    }
+    .quiz-title {
+      font-family: 'Playfair Display', serif;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .quiz-counter {
+      font-size: 0.72rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+
+    /* ── Card ── */
+    .card {
+      width: 100%;
+      max-width: 680px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 52px 56px 48px;
+      box-shadow: 6px 6px 0 var(--border);
+      opacity: 0;
+      transform: translateY(24px);
+      animation: rise 0.45s cubic-bezier(.4,0,.2,1) forwards;
+    }
+    @keyframes rise {
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .q-number {
+      font-size: 0.68rem;
+      letter-spacing: 0.18em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    .q-text {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+      font-weight: 700;
+      line-height: 1.35;
+      margin-bottom: 36px;
+      color: var(--ink);
+    }
+
+    /* ── Checkbox options ── */
+    .options {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 40px;
+    }
+
+    .option-label {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 14px 18px;
+      border: 1.5px solid var(--border);
+      border-radius: 2px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .option-label:hover {
+      border-color: var(--ink);
+      background: var(--paper);
+    }
+    .option-label.selected {
+      border-color: var(--check);
+      background: #edf7f1;
+    }
+
+    /* Hide native checkbox */
+    .option-label input[type="checkbox"] {
+      position: absolute;
+      opacity: 0;
+      width: 0; height: 0;
+    }
+
+    /* Custom box */
+    .custom-box {
+      width: 20px;
+      height: 20px;
+      min-width: 20px;
+      border: 2px solid var(--border);
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .option-label.selected .custom-box {
+      border-color: var(--check);
+      background: var(--check);
+    }
+    .check-icon {
+      display: none;
+      width: 11px; height: 8px;
+      stroke: #fff;
+      stroke-width: 2.5;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .option-label.selected .check-icon { display: block; }
+
+    .option-text {
+      font-size: 0.88rem;
+      line-height: 1.5;
+      letter-spacing: 0.01em;
+    }
+
+    /* ── Next button ── */
+    .btn-next {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 32px;
+      background: var(--ink);
+      color: var(--paper);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-next:disabled {
+      background: var(--border);
+      color: var(--muted);
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    .btn-next:not(:disabled):hover { background: var(--accent); }
+    .btn-next:not(:disabled):active { transform: scale(0.98); }
+
+    .btn-next .arrow {
+      font-size: 1rem;
+      transition: transform 0.2s;
+    }
+    .btn-next:not(:disabled):hover .arrow { transform: translateX(4px); }
+
+    /* ── Submit screen ── */
+    #submit-screen {
+      display: none;
+      width: 100%;
+      max-width: 680px;
+      text-align: center;
+    }
+    #submit-screen.visible { display: block; }
+
+    .submit-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 60px 56px;
+      box-shadow: 6px 6px 0 var(--border);
+      animation: rise 0.45s cubic-bezier(.4,0,.2,1) forwards;
+      opacity: 0;
+    }
+
+    .submit-icon {
+      width: 56px; height: 56px;
+      margin: 0 auto 24px;
+      background: var(--check);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .submit-icon svg { stroke: #fff; fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+
+    .submit-heading {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+    .submit-sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      margin-bottom: 36px;
+      line-height: 1.7;
+    }
+
+    .btn-submit {
+      padding: 15px 40px;
+      background: var(--accent);
+      color: #fff;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.82rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 2px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .btn-submit:hover { background: #a5320f; }
+    .btn-submit:active { transform: scale(0.98); }
+    .btn-submit:disabled { background: var(--border); color: var(--muted); cursor: default; }
+
+    #submit-status {
+      margin-top: 20px;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      min-height: 1.2em;
+    }
+    #submit-status.ok  { color: var(--check); }
+    #submit-status.err { color: var(--accent); }
+
+    /* ── Thank you screen ── */
+    #thankyou-screen {
+      display: none;
+      width: 100%;
+      max-width: 680px;
+      text-align: center;
+    }
+    #thankyou-screen.visible { display: block; }
+    .thankyou-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 72px 56px;
+      box-shadow: 6px 6px 0 var(--border);
+      animation: rise 0.45s cubic-bezier(.4,0,.2,1) forwards;
+      opacity: 0;
+    }
+    .big-check {
+      font-size: 3rem;
+      margin-bottom: 20px;
+    }
+    .thankyou-heading {
+      font-family: 'Playfair Display', serif;
+      font-size: 2.2rem;
+      font-weight: 900;
+      margin-bottom: 12px;
+    }
+    .thankyou-sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 600px) {
+      .card, .submit-card, .thankyou-card { padding: 36px 28px; }
+      .quiz-header { padding: 16px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<header class="quiz-header">
+  <span class="quiz-title">Quiz</span>
+  <span class="quiz-counter" id="counter">Question 1 of 10</span>
+</header>
+
+<div id="app">
+  <!-- Question card injected here -->
+  <div id="question-area"></div>
+
+  <!-- Review & submit screen -->
+  <div id="submit-screen">
+    <div class="submit-card">
+      <div class="submit-icon">
+        <svg width="28" height="28" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2 class="submit-heading">All done!</h2>
+      <p class="submit-sub">
+        You've answered all 10 questions.<br>
+        Click below to submit your responses.
+      </p>
+      <button class="btn-submit" id="submitBtn" onclick="submitAnswers()">Submit responses</button>
+      <div id="submit-status"></div>
+    </div>
+  </div>
+
+  <!-- Thank you screen -->
+  <div id="thankyou-screen">
+    <div class="thankyou-card">
+      <div class="big-check">✓</div>
+      <h2 class="thankyou-heading">Thank you!</h2>
+      <p class="thankyou-sub">Your responses have been recorded.<br>You may now close this page.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─────────────────────────────────────────────
+  // CONFIGURATION — edit these before publishing
+  // ─────────────────────────────────────────────
+
+  // Replace with your deployed Google Apps Script Web App URL
+  const SHEET_ENDPOINT = "YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
+
+  // Your 10 questions. Each question has:
+  //   text   — the question shown to the user
+  //   options — array of checkbox label strings (can be 1 or many; user picks exactly one to advance)
+  const QUESTIONS = [
+    {
+      text: "What best describes your current role?",
+      options: ["Student", "Professional", "Researcher", "Other"]
+    },
+    {
+      text: "How often do you use online learning platforms?",
+      options: ["Daily", "A few times a week", "Occasionally", "Rarely or never"]
+    },
+    {
+      text: "Which topic are you most interested in?",
+      options: ["Technology", "Science", "Arts & Humanities", "Business"]
+    },
+    {
+      text: "What is your preferred learning format?",
+      options: ["Video lectures", "Reading / articles", "Interactive exercises", "Live sessions"]
+    },
+    {
+      text: "How would you rate your current skill level in your field?",
+      options: ["Beginner", "Intermediate", "Advanced", "Expert"]
+    },
+    {
+      text: "What's the biggest obstacle to your learning?",
+      options: ["Lack of time", "Cost of resources", "Hard to stay motivated", "Difficulty finding quality content"]
+    },
+    {
+      text: "Do you prefer learning alone or with others?",
+      options: ["Alone", "In a small group", "In a large community", "Mix of both"]
+    },
+    {
+      text: "How important is a certificate or credential to you?",
+      options: ["Very important", "Somewhat important", "Not very important", "Not important at all"]
+    },
+    {
+      text: "Which device do you primarily use for learning?",
+      options: ["Desktop / laptop", "Tablet", "Phone", "Mix of devices"]
+    },
+    {
+      text: "Would you recommend this quiz to a colleague?",
+      options: ["Definitely yes", "Probably yes", "Probably not", "Definitely not"]
+    }
+  ];
+
+  // ─────────────────────────────────────────────
+  // State
+  // ─────────────────────────────────────────────
+  let current = 0;
+  const answers = new Array(QUESTIONS.length).fill(null);
+
+  // ─────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────
+  function render() {
+    updateProgress();
+
+    if (current >= QUESTIONS.length) {
+      showSubmitScreen();
+      return;
+    }
+
+    const q = QUESTIONS[current];
+    const area = document.getElementById("question-area");
+
+    area.innerHTML = `
+      <div class="card" id="card-${current}">
+        <div class="q-number">Question ${current + 1} / ${QUESTIONS.length}</div>
+        <div class="q-text">${escHtml(q.text)}</div>
+        <div class="options" id="options-${current}">
+          ${q.options.map((opt, i) => `
+            <label class="option-label${answers[current] === i ? ' selected' : ''}" data-idx="${i}">
+              <input type="checkbox" ${answers[current] === i ? 'checked' : ''} />
+              <span class="custom-box">
+                <svg class="check-icon" viewBox="0 0 12 9"><polyline points="1 4.5 4.5 8 11 1"/></svg>
+              </span>
+              <span class="option-text">${escHtml(opt)}</span>
+            </label>
+          `).join('')}
+        </div>
+        <button class="btn-next" id="nextBtn" ${answers[current] === null ? 'disabled' : ''} onclick="advance()">
+          ${current === QUESTIONS.length - 1 ? 'Finish' : 'Next question'}
+          <span class="arrow">→</span>
+        </button>
+      </div>
+    `;
+
+    // Wire up option clicks
+    document.querySelectorAll(`#options-${current} .option-label`).forEach(label => {
+      label.addEventListener('click', () => selectOption(parseInt(label.dataset.idx)));
+    });
+
+    document.getElementById("counter").textContent =
+      `Question ${current + 1} of ${QUESTIONS.length}`;
+  }
+
+  function selectOption(idx) {
+    answers[current] = idx;
+    document.querySelectorAll(`#options-${current} .option-label`).forEach((l, i) => {
+      l.classList.toggle('selected', i === idx);
+    });
+    const btn = document.getElementById("nextBtn");
+    if (btn) btn.disabled = false;
+  }
+
+  function advance() {
+    if (answers[current] === null) return;
+    current++;
+    render();
+  }
+
+  function updateProgress() {
+    const pct = (current / QUESTIONS.length) * 100;
+    document.getElementById("progress-bar").style.width = pct + "%";
+  }
+
+  // ─────────────────────────────────────────────
+  // Submit screen
+  // ─────────────────────────────────────────────
+  function showSubmitScreen() {
+    document.getElementById("question-area").style.display = "none";
+    document.getElementById("counter").textContent = "Complete";
+    document.getElementById("submit-screen").classList.add("visible");
+    document.getElementById("progress-bar").style.width = "100%";
+  }
+
+  async function submitAnswers() {
+    const btn = document.getElementById("submitBtn");
+    const status = document.getElementById("submit-status");
+    btn.disabled = true;
+    btn.textContent = "Submitting…";
+    status.textContent = "";
+    status.className = "";
+
+    // Build payload: question text + chosen answer text for each
+    const payload = {
+      timestamp: new Date().toISOString(),
+      responses: QUESTIONS.map((q, i) => ({
+        question: q.text,
+        answer: answers[i] !== null ? q.options[answers[i]] : "(skipped)"
+      }))
+    };
+
+    try {
+      await fetch(SHEET_ENDPOINT, {
+        method: "POST",
+        mode: "no-cors",           // Apps Script requires no-cors
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      // no-cors means we can't read the response; assume success
+      showThankYou();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "Try again";
+      status.textContent = "Something went wrong. Please try again.";
+      status.className = "err";
+    }
+  }
+
+  function showThankYou() {
+    document.getElementById("submit-screen").classList.remove("visible");
+    document.getElementById("thankyou-screen").classList.add("visible");
+  }
+
+  // ─────────────────────────────────────────────
+  // Utility
+  // ─────────────────────────────────────────────
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // Boot
+  render();
+</script>
+</body>
+</html>
